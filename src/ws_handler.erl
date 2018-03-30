@@ -10,6 +10,12 @@ init(Req, Opts) ->
 	io:format("Init with ~p~n",[Req]),
 	{cowboy_websocket, Req, Opts}.
 
+apply_filler(State,Pid) ->
+	io:format("Started applying filler~n"),
+	% erlang:send(Pid, {binary,list_to_binary([<<147,2,218,16,0>>,<<0>>,<<255:(4099*8)>>])}).
+	% FillerData = list_to_binary([100||_E<-lists:seq(1,4097)]),
+	timer:send_interval(100,Pid,{binary,list_to_binary([<<147,2,218,16,0>>,<<0>>,<<255:(4099*8)>>])}).
+
 websocket_init(State) ->
 	io:format("sending hello back ~p~n",[State]),
 	%%Connect to TCP server
@@ -25,8 +31,13 @@ websocket_init(State) ->
                  "Upgrade: websocket\r\n",
                  % [ [Header, ": ", Value, "\r\n"] || {Header, Value} <- ExtraHeaders],
                  "\r\n"],
+                 io:format("sending handshake"),
+                 NewState = [{tcp_client_sock, Sock}|State],
                  gen_tcp:send(Sock,list_to_binary(Handshake)),
-                 {ok,[{tcp_client_sock, Sock}|State]};
+                 % websocket_client:encode_frame({binary,<<147,1,192,0>>}),
+                 % gen_tcp:send(element(2,hd(NewState)),websocket_client:encode_frame({binary,<<147,1,192,0>>})),
+                 % apply_filler(NewState,self()),
+                 {ok,NewState};
 		Reason ->
 			io:format("Unable to start TCP client with Reason ~p~n",[Reason]),
 			{ok,[]}
@@ -51,7 +62,7 @@ websocket_handle({text, Msg}, State) ->
 	{reply, {text, << "That's what she said! ", Msg/binary >>}, State};
 websocket_handle(Data, State) ->
 	DataSize = binary:referenced_byte_size(element(2,Data)),
-	io:format("Received data ~p~n",[Data]),
+	io:format("Received data ~p: ~p~n",[DataSize,Data]),
 	%%UDP sending
 	% ok = gen_udp:send(element(2,hd(State)), "localhost", 10000, element(2,Data)),
 	%%Websocket casting
@@ -68,21 +79,25 @@ websocket_handle(Data, State) ->
 	% 			true ->
 	% 				ok
 	% end,
-	NewState = case DataSize of
-				256 ->
-					State++[{handshake,true}];
-				_ ->
-					State
-	end,
-	<< MaskingKey:32 >> = <<221,183,73,218>>,
+	% NewState = case DataSize of
+	% 			256 ->
+	% 				State++[{handshake,true}];
+	% 			_ ->
+	% 				State
+	% end,
 	% gen_tcp:send(element(2,hd(State)),erlang:list_to_binary([<<130,132,221,183,73,218>>,websocket_client:mask_payload(MaskingKey,element(2,Data))])),
 	gen_tcp:send(element(2,hd(State)),websocket_client:encode_frame(Data)),
-	{ok, NewState}.
+	apply_filler(State,self()),
+	{ok, State}.
 
 websocket_info({timeout, _Ref, Msg}, State) ->
 	io:format("Timeout!!! ~p~n",[Msg]),
 	erlang:start_timer(1000, self(), <<"How' you doin'?">>),
 	{reply, {text, Msg}, State};
+websocket_info({binary,Data}, State) ->
+	io:format("Got data in info~n"),
+	gen_tcp:send(element(2,hd(State)),websocket_client:encode_frame({binary,Data})),
+	{ok, State};
 websocket_info(Info, State) ->
 	io:format("Some thing random ~p~n",[Info]),
 	{ok, State}.
