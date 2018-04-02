@@ -28,7 +28,14 @@ start_link() ->
 
 %% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
 init([]) ->
-    {ok, { {one_for_all, 10, 10}, []} }.
+	ChildSpec = #{
+		id => speaker_worker, 
+		start => {speaker_worker, start_link,[]},
+		restart => permanent,
+		shutdown => brutal_kill,
+		type => worker
+		},
+    {ok, { {one_for_all, 10, 10}, [ChildSpec]} }.
 
 %%====================================================================
 %% Internal functions

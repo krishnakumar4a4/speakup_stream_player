@@ -1,3 +1,4 @@
+*.erl~
 node_modules
 .rebar3
 _*
