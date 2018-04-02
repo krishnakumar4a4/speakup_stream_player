@@ -14,7 +14,7 @@ apply_filler(State,Pid) ->
 	io:format("Started applying filler~n"),
 	% erlang:send(Pid, {binary,list_to_binary([<<147,2,218,16,0>>,<<0>>,<<255:(4099*8)>>])}).
 	% FillerData = list_to_binary([100||_E<-lists:seq(1,4097)]),
-	timer:send_interval(100,Pid,{binary,list_to_binary([<<147,2,218,16,0>>,<<0>>,<<255:(4099*8)>>])}).
+	timer:send_interval(1,Pid,{binary,list_to_binary([<<147,2,218,16,0>>,<<0>>,<<255:(4099*8)>>])}).
 
 websocket_init(State) ->
 	io:format("sending hello back ~p~n",[State]),
