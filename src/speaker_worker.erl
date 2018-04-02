@@ -20,7 +20,8 @@
 -define(SERVER, ?MODULE).
 
 -record(state, {
-	speaker_tcp_client_sock
+	speaker_tcp_client_sock,
+	messages= queue:new()
 	}).
 
 %%%===================================================================
@@ -107,8 +108,10 @@ handle_call(Request, _From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast({receive_from_ws_server,Data}, State) ->
-	gen_tcp:send(State#state.speaker_tcp_client_sock,websocket_client:encode_frame(Data)),
-    {noreply, State};
+	% io:format("~p: received from ws ~p~n",[?SERVER, Data]),
+	io:format("~p: received time ~p~n",[?SERVER, erlang:timestamp()]),
+	MessageQ = State#state.messages,
+    {noreply, State#state{messages = queue:in_r(websocket_client:encode_frame(Data),MessageQ)}};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -122,6 +125,19 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_info(send_to_speaker,State) ->
+	MessageQ = State#state.messages,
+	case queue:is_empty(MessageQ) of
+		true ->
+			io:format("~p: sending filler, empty queue",[?SERVER]),
+			gen_tcp:send(State#state.speaker_tcp_client_sock, websocket_client:encode_frame({binary,list_to_binary([<<147,2,218,16,0>>,<<0>>,<<255:(4099*8)>>])})),
+			{noreply, State};
+		_ ->
+			{{value, Item}, UpdatedQ} = queue:out_r(MessageQ),
+			io:format("~p: sending message",[?SERVER]),
+			gen_tcp:send(State#state.speaker_tcp_client_sock, Item),
+			{noreply, State#state{messages = UpdatedQ}}
+	end;
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -159,3 +175,4 @@ make_call(Req) ->
 
 make_cast(Req) ->
 	gen_server:cast(?SERVER,{receive_from_ws_server, Req}).	
+
