@@ -1,17 +1,17 @@
 %%%-------------------------------------------------------------------
-%%% @author krishnak <krishnakumar4a4@gmail.com>
-%%% @copyright (C) 2018, krishnakumart
+%%% @author krishnak <krishnak@inadmin-8.local>
+%%% @copyright (C) 2018, krishnak
 %%% @doc
 %%%
 %%% @end
-%%% Created :  2 Apr 2018 by krishnakumart <krishnakumar4a4@gmail.com>
+%%% Created :  3 Apr 2018 by krishnak <krishnak@inadmin-8.local>
 %%%-------------------------------------------------------------------
--module(speaker_worker).
+-module(moderator).
 
 -behaviour(gen_server).
 
 %% API
--export([start_link/0,make_call/1,make_cast/1]).
+-export([start_link/0, cast_to_speaker/2, registered/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -20,9 +20,8 @@
 -define(SERVER, ?MODULE).
 
 -record(state, {
-	speaker_tcp_client_sock
-	% messages= queue:new()
-	}).
+    ws_handlers=[]
+    }).
 
 %%%===================================================================
 %%% API
@@ -36,9 +35,7 @@
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
-    {ok,Pid} = gen_server:start_link({local, ?SERVER}, ?MODULE, [], []),
-    gen_server:call(?SERVER,{connect},infinity),
-    {ok,Pid}.
+    gen_server:start_link({global, ?SERVER}, ?MODULE, [], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -73,27 +70,18 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call({connect}, _From, State) ->
-    SomeHostInNet = "localhost", % to make it runnable on one machine
-    case gen_tcp:connect(SomeHostInNet, 9001,[binary, {packet, 0}]) of
-		{ok, Sock} ->
-			Handshake = ["GET ", "/", " HTTP/1.1\r\n"
-                 "Host: ", "localhost:8080", "\r\n"
-                 "Connection: Upgrade\r\n"
-                 "Sec-WebSocket-Version: 13\r\n"
-                 "Sec-WebSocket-Key: ", "JrsCSV40KdotKvRfAzD0dg==", "\r\n"
-                 "Upgrade: websocket\r\n",
-                 "\r\n"],
-                 io:format("sending handshake"),
-                 gen_tcp:send(Sock,list_to_binary(Handshake)),
-                 {reply,ok,#state{speaker_tcp_client_sock = Sock}};
-		Reason ->
-			io:format("Unable to start TCP client with Reason ~p~n",[Reason]),
-			{reply,error,State}
-	end;
-
-handle_call(Request, _From, State) ->
-	io:format("~p: handle_call request ~p~n",[?SERVER,Request]),
+handle_call({register, ClientPid}, From, State) ->
+    io:format("~p: registered client ~p, ~p~n",[?MODULE, ClientPid, From]),
+    RegisteredClients = [{ClientPid, monitor(process,ClientPid)}|State#state.ws_handlers],
+    {reply, ok, State#state{ws_handlers = RegisteredClients}};
+handle_call({unregister, ClientPid}, From, State) ->
+    io:format("~p: unregistered client ~p, ~p~n",[?MODULE, ClientPid, From]),
+    RegisteredClients = [I||I<-State#state.ws_handlers, I =/= {ClientPid, From}],
+    {reply, ok, State#state{ws_handlers = RegisteredClients}};
+handle_call(registered, _From, State) ->
+    Reply = State#state.ws_handlers,
+    {reply, Reply, State};
+handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
@@ -107,21 +95,10 @@ handle_call(Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({receive_from_ws_server,Data}, State) ->
-	% io:format("~p: received from ws ~p~n",[?SERVER, Data]),
-	io:format("~p: received time ~p~n",[?SERVER, erlang:timestamp()]),
-	% MessageQ = State#state.messages,
-	case Data of
-		{binary, <<147,5,192,0>>} ->
-			{noreply, State};
-		Data ->	
-			%%If you wanted to go by queue approach	
-    		% {noreply, State#state{messages = queue:in_r(websocket_client:encode_frame(Data),MessageQ)}}
-
-    		%% Directly send stream to speaker
-    		gen_tcp:send(State#state.speaker_tcp_client_sock, websocket_client:encode_frame(Data)),
-    		{noreply, State}
-    end;
+handle_cast({receive_from_ws_handler, From, Data}, State) ->
+    io:format("~p: Forwarding message to speaker from ~p ~n", [?MODULE, From]),
+    speaker_worker:make_cast(Data),
+    {noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -135,23 +112,10 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-
-%% If you want to invoke sending messages calling for every interval
-% handle_info(send_to_speaker,State) ->
-% 	MessageQ = State#state.messages,
-% 	case queue:is_empty(MessageQ) of
-% 		true ->
-% 			io:format("~p: sending filler, empty queue~n",[?SERVER]),
-% 			% gen_tcp:send(State#state.speaker_tcp_client_sock, websocket_client:encode_frame({binary,list_to_binary([<<147,2,218,16,0>>,<<0>>,<<255:(4099*8)>>])})),
-% 			{noreply, State};
-% 		_ ->
-% 			{{value, Item}, UpdatedQ} = queue:out_r(MessageQ),
-% 			io:format("~p: sending message",[?SERVER]),
-% 			gen_tcp:send(State#state.speaker_tcp_client_sock, Item),
-% 			{noreply, State#state{messages = UpdatedQ}}
-% 	end;
-
-
+handle_info({'DOWN', MonitorRef, Type, Object, Info}, State) ->
+    io:format("~p: unregistered client after down ~p ~n",[?MODULE, MonitorRef]),
+    RegisteredClients = [I||I<-State#state.ws_handlers, element(2,I) =/= MonitorRef],
+    {noreply, State#state{ws_handlers = RegisteredClients}};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -184,9 +148,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-make_call(Req) ->
-	gen_server:call(?SERVER,Req).
+cast_to_speaker(Data, From) ->
+    gen_server:cast({global,?MODULE},{receive_from_ws_handler, From, Data}).
 
-make_cast(Req) ->
-	gen_server:cast(?SERVER,{receive_from_ws_server, Req}).	
-
+registered() ->
+    gen_server:call({global, ?MODULE}, registered).
