@@ -6,7 +6,7 @@
 -export([websocket_info/2]).
 -export([onOpen/0,onClose/0,onMessage/1]).
 -record(state,{
-	client_on = false
+	client_on = true
 	}).
 
 init(Req, Opts) ->
@@ -58,6 +58,7 @@ websocket_info(Info, State) ->
 
 websocket_terminate(Reason, Req, State) ->
 	io:format("ws_handler terinating with ~p~n",[Reason]),
+	gen_server:call({global,moderator},{unregister,self()}),
 	ok.
 
 onOpen() -> 
