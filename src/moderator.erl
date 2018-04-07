@@ -20,7 +20,8 @@
 -define(SERVER, ?MODULE).
 
 -record(state, {
-    ws_handlers=[]
+    ws_handlers=[],
+    participant_id = 0
     }).
 
 %%%===================================================================
@@ -72,16 +73,24 @@ init([]) ->
 %%--------------------------------------------------------------------
 handle_call({register, ClientPid}, From, State) ->
     io:format("~p: registered client ~p, ~p~n",[?MODULE, ClientPid, From]),
-    RegisteredClients = [{ClientPid, monitor(process,ClientPid)}|State#state.ws_handlers],
-    {reply, ok, State#state{ws_handlers = RegisteredClients}};
-handle_call({unregister, ClientPid}, From, State) ->
-    io:format("~p: unregistered client ~p, ~p~n",[?MODULE, ClientPid, From]),
-    RegisteredClients = [I||I<-State#state.ws_handlers, I =/= {ClientPid, From}],
-    {reply, ok, State#state{ws_handlers = RegisteredClients}};
+    PartcipantId = State#state.participant_id+1,
+    RegisteredClients = [{ClientPid, monitor(process,ClientPid),PartcipantId}|State#state.ws_handlers],
+    {reply, ok, State#state{ws_handlers = RegisteredClients, participant_id = PartcipantId}};
+% handle_call({unregister, ClientPid}, From, State) ->
+%     io:format("~p: unregistered client ~p, ~p~n",[?MODULE, ClientPid, From]),
+%     RegisteredClients = [I||I<-State#state.ws_handlers, I =/= {ClientPid, From}],
+%     {reply, ok, State#state{ws_handlers = RegisteredClients}};
 handle_call(registered, _From, State) ->
     Reply = State#state.ws_handlers,
     {reply, Reply, State};
-handle_call(_Request, _From, State) ->
+handle_call({mute, Id}, _From, State) ->
+    io:format("Muting id ~p~n", [Id]),
+    {reply, ok, State};
+handle_call({can_speak, Id}, _From, State) ->
+    io:format("can speak id ~p~n", [Id]),
+    {reply, ok, State};    
+handle_call(Request, _From, State) ->
+    io:format("Received request ~p~n",[Request]),
     Reply = ok,
     {reply, Reply, State}.
 
