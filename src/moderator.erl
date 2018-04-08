@@ -21,7 +21,7 @@
 
 -record(state, {
     ws_handlers=[],
-    participant_id = 0
+    participant_count = 0
     }).
 
 %%%===================================================================
@@ -73,22 +73,45 @@ init([]) ->
 %%--------------------------------------------------------------------
 handle_call({register, ClientPid}, From, State) ->
     io:format("~p: registered client ~p, ~p~n",[?MODULE, ClientPid, From]),
-    PartcipantId = State#state.participant_id+1,
-    RegisteredClients = [{ClientPid, monitor(process,ClientPid),PartcipantId}|State#state.ws_handlers],
-    {reply, ok, State#state{ws_handlers = RegisteredClients, participant_id = PartcipantId}};
+    PartcipantId = State#state.participant_count+1,
+    RegisteredClients = [{ClientPid, monitor(process,ClientPid),PartcipantId, false}|State#state.ws_handlers],
+    {reply, ok, State#state{ws_handlers = RegisteredClients, participant_count = PartcipantId}};
 % handle_call({unregister, ClientPid}, From, State) ->
 %     io:format("~p: unregistered client ~p, ~p~n",[?MODULE, ClientPid, From]),
 %     RegisteredClients = [I||I<-State#state.ws_handlers, I =/= {ClientPid, From}],
 %     {reply, ok, State#state{ws_handlers = RegisteredClients}};
 handle_call(registered, _From, State) ->
     Reply = State#state.ws_handlers,
+    io:format("registered ~p~n",[Reply]),
     {reply, Reply, State};
-handle_call({mute, Id}, _From, State) ->
-    io:format("Muting id ~p~n", [Id]),
-    {reply, ok, State};
-handle_call({can_speak, Id}, _From, State) ->
-    io:format("can speak id ~p~n", [Id]),
-    {reply, ok, State};    
+handle_call({mute, PartcipantId}, _From, State) ->
+    io:format("Muting id ~p~n", [PartcipantId]),
+    Participants = State#state.ws_handlers,
+    F = fun(A,ClientPid,Id) -> case list_to_binary(integer_to_list(1)) of
+                        Id ->
+                            erlang:send(ClientPid,{client_on,false}),
+                            false;
+                        _ ->
+                            false
+                        end 
+        end,
+    UpdatedParticipants = [{A,B,C,F(C,A,PartcipantId)}||{A,B,C,D}<-Participants],
+    {reply, ok, State#state{ws_handlers = UpdatedParticipants}};
+handle_call({can_speak, PartcipantId}, _From, State) ->
+    io:format("can speak id ~p~n", [PartcipantId]),
+    Participants = State#state.ws_handlers,
+        F = fun(A,ClientPid,Id) -> 
+            case list_to_binary(integer_to_list(1)) of
+                        Id ->
+                            erlang:send(ClientPid,{client_on,true}),
+                            true;
+                        _ ->
+                            false
+                        end 
+        end,
+    UpdatedParticipants = [{A,B,C,F(C,A,PartcipantId)}||{A,B,C,D}<-Participants],
+    io:format("UpdatedParticipants ~p~n",[UpdatedParticipants]),
+    {reply, ok, State#state{ws_handlers = UpdatedParticipants}};    
 handle_call(Request, _From, State) ->
     io:format("Received request ~p~n",[Request]),
     Reply = ok,
