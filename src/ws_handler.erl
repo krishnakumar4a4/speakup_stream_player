@@ -6,7 +6,7 @@
 -export([websocket_info/2]).
 -export([onOpen/0,onClose/0,onMessage/1]).
 -record(state,{
-	client_on = true
+	client_on = false
 	}).
 
 init(Req, Opts) ->
@@ -49,9 +49,9 @@ websocket_info({binary,Data}, State) ->
 	end,
 	{ok, State};
 websocket_info({client_on,true}, State) ->
-	{reply, true, State#state{client_on = true}};
+	{ok, State#state{client_on = true}};
 websocket_info({client_on,false}, State) ->
-	{reply, false, State#state{client_on = false}};
+	{ok, State#state{client_on = false}};
 websocket_info(Info, State) ->
 	io:format("Some thing random ~p~n",[Info]),
 	{ok, State}.
