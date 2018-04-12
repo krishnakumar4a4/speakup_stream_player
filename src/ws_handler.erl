@@ -4,9 +4,10 @@
 -export([websocket_init/1]).
 -export([websocket_handle/2]).
 -export([websocket_info/2]).
+-export([websocket_terminate/3]).
 -export([onOpen/0,onClose/0,onMessage/1]).
 -record(state,{
-	client_on = false
+	client_on = true
 	}).
 
 init(Req, Opts) ->
@@ -49,14 +50,16 @@ websocket_info({binary,Data}, State) ->
 	end,
 	{ok, State};
 websocket_info({client_on,true}, State) ->
+	io:format("Turning on client to speak ~p~n",[self()]),
 	{ok, State#state{client_on = true}};
 websocket_info({client_on,false}, State) ->
+	io:format("Turning off client to speak ~p~n",[self()]),
 	{ok, State#state{client_on = false}};
 websocket_info(Info, State) ->
 	io:format("Some thing random ~p~n",[Info]),
 	{ok, State}.
 
-websocket_terminate(Reason, Req, State) ->
+websocket_terminate(Reason, _Req, _State) ->
 	io:format("ws_handler terinating with ~p~n",[Reason]),
 	gen_server:call({global,moderator},{unregister,self()}),
 	ok.

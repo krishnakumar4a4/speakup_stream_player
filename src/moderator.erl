@@ -87,7 +87,7 @@ handle_call(registered, _From, State) ->
 handle_call({mute, PartcipantId}, _From, State) ->
     io:format("Muting id ~p~n", [PartcipantId]),
     Participants = State#state.ws_handlers,
-    F = fun(A,ClientPid,Id) -> case list_to_binary(integer_to_list(1)) of
+    F = fun(A,ClientPid,Id) -> case list_to_binary(integer_to_list(A)) of
                         Id ->
                             erlang:send(ClientPid,{client_on,false}),
                             false;
@@ -95,21 +95,23 @@ handle_call({mute, PartcipantId}, _From, State) ->
                             false
                         end 
         end,
-    UpdatedParticipants = [{A,B,C,F(C,A,PartcipantId)}||{A,B,C,D}<-Participants],
+    UpdatedParticipants = [{A,B,C,F(C,A,PartcipantId)}||{A,B,C,_D}<-Participants],
     {reply, ok, State#state{ws_handlers = UpdatedParticipants}};
 handle_call({can_speak, PartcipantId}, _From, State) ->
     io:format("can speak id ~p~n", [PartcipantId]),
     Participants = State#state.ws_handlers,
         F = fun(A,ClientPid,Id) -> 
-            case list_to_binary(integer_to_list(1)) of
+            case list_to_binary(integer_to_list(A)) of
                         Id ->
+                            %%Send all the clients false for safety,
+                            %%if we are making one of them true
                             erlang:send(ClientPid,{client_on,true}),
                             true;
                         _ ->
                             false
                         end 
         end,
-    UpdatedParticipants = [{A,B,C,F(C,A,PartcipantId)}||{A,B,C,D}<-Participants],
+    UpdatedParticipants = [{A,B,C,F(C,A,PartcipantId)}||{A,B,C,_D}<-Participants],
     io:format("UpdatedParticipants ~p~n",[UpdatedParticipants]),
     {reply, ok, State#state{ws_handlers = UpdatedParticipants}};    
 handle_call(Request, _From, State) ->
@@ -144,7 +146,7 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info({'DOWN', MonitorRef, Type, Object, Info}, State) ->
+handle_info({'DOWN', MonitorRef, _Type, _Object, _Info}, State) ->
     io:format("~p: unregistered client after down ~p ~n",[?MODULE, MonitorRef]),
     RegisteredClients = [I||I<-State#state.ws_handlers, element(2,I) =/= MonitorRef],
     {noreply, State#state{ws_handlers = RegisteredClients}};

@@ -107,12 +107,18 @@ handle_call(Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({receive_from_ws_server,Data}, State) ->
+handle_cast({receive_from_moderator,Data}, State) ->
 	% io:format("~p: received from ws ~p~n",[?SERVER, Data]),
 	io:format("~p: received time ~p~n",[?SERVER, erlang:timestamp()]),
 	% MessageQ = State#state.messages,
 	case Data of
 		{binary, <<147,5,192,0>>} ->
+		io:format("~p: Neglecting signal 5~n",[?MODULE]),
+			{noreply, State};
+			%% Following this approach https://hacks.mozilla.org/2016/04/record-almost-everything-in-the-browser-with-mediarecorder/
+			%% below signal is also sent extra, removing it to be consistent for speaker 
+		{binary, <<147,4,192,0>>} ->
+		io:format("~p: Neglecting signal 4~n",[?MODULE]),
 			{noreply, State};
 		Data ->	
 			%%If you wanted to go by queue approach	
@@ -120,6 +126,7 @@ handle_cast({receive_from_ws_server,Data}, State) ->
 
     		%% Directly send stream to speaker
     		gen_tcp:send(State#state.speaker_tcp_client_sock, websocket_client:encode_frame(Data)),
+    		io:format("~p: Sending stream to speaker~n",[?MODULE]),
     		{noreply, State}
     end;
 handle_cast(_Msg, State) ->
@@ -188,5 +195,5 @@ make_call(Req) ->
 	gen_server:call(?SERVER,Req).
 
 make_cast(Req) ->
-	gen_server:cast(?SERVER,{receive_from_ws_server, Req}).	
+	gen_server:cast(?SERVER,{receive_from_moderator, Req}).	
 
