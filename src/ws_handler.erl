@@ -11,8 +11,22 @@
 	}).
 
 init(Req, Opts) ->
-	io:format("Init with ~p~n",[Req]),
-	{cowboy_websocket, Req, Opts}.
+	% io:format("Init with ~p~n",[Req]),
+	case binary:split(cowboy_req:qs(Req),<<"=">>) of
+		[<<"ttt">>,TTT] ->
+			io:format("~p: Query value is ~p ~n",[?MODULE, TTT]),
+			Cookie = proplists:get_value(<<"participant_cookie">>,cowboy_req:parse_cookies(Req)),
+			io:format("~p: cookies from req are ~p~n",[?MODULE,Cookie]),
+			case gen_server:call({global,moderator_worker},{validate_ttt, Cookie, TTT}) of
+				ok ->
+					{cowboy_websocket, Req, Opts};
+				donotexist ->
+					{error, "Cannot start"}
+				end;
+			% validate_with_moderator()
+		_Val ->
+			io:format("~p: Invalid attempt ~p~n",[?MODULE, _Val])
+	end.
 
 % apply_filler(State,Pid) ->
 % 	io:format("Started applying filler~n"),
