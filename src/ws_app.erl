@@ -21,9 +21,17 @@ start(_Type, _Args) ->
                         {"/static/[...]", cowboy_static, {priv_dir, websocket, "static"}}
                 ]}
         ]),
-        {ok, _} = cowboy:start_clear(http, [{port, 8080}], #{
-                env => #{dispatch => Dispatch}
-        }),
+        % {ok, _} = cowboy:start_clear(http, [{port, 8080}], #{
+        %         env => #{dispatch => Dispatch}
+        % }),
+
+                PrivDir = code:priv_dir(ws),
+        {ok, _} = cowboy:start_tls(https, [
+                {port, 8443},
+                % {cacertfile, PrivDir ++ "/ssl/cowboy-ca.crt"},
+                {certfile, PrivDir ++ "/ssl/localhost.cert"},
+                {keyfile, PrivDir ++ "/ssl/localhost.key"}
+        ], #{env => #{dispatch => Dispatch}}),
         ws_sup:start_link().
 
 stop(_State) ->
