@@ -7,7 +7,9 @@
 -export([websocket_terminate/3]).
 -export([onOpen/0,onClose/0,onMessage/1]).
 -record(state,{
-	client_on = true
+	client_on = true,
+	token,
+	ttt
 	}).
 
 init(Req, Opts) ->
@@ -19,7 +21,7 @@ init(Req, Opts) ->
 			io:format("~p: cookies from req are ~p~n",[?MODULE,Cookie]),
 			case gen_server:call({global,moderator_worker},{validate_ttt, Cookie, TTT}) of
 				ok ->
-					{cowboy_websocket, Req, Opts};
+					{cowboy_websocket, Req, [{token, Cookie},{ttt, TTT}], maps:new()};
 				donotexist ->
 					{error, "Cannot start"}
 				end;
@@ -48,8 +50,9 @@ websocket_handle(Data, State) ->
 
 websocket_init(State) ->
 	io:format("sending hello back ~p~n",[State]),
-	gen_server:call({global,moderator},{register,self()}),
-	{ok,#state{}}.
+	[{token, Token}, {ttt, TTT}] = State,
+	gen_server:call({global,moderator},{register,self(), Token, TTT}),
+	{ok,#state{ token = Token, ttt = TTT}}.
 
 websocket_info({timeout, _Ref, Msg}, State) ->
 	io:format("Timeout!!! ~p~n",[Msg]),
@@ -69,6 +72,9 @@ websocket_info({client_on,true}, State) ->
 websocket_info({client_on,false}, State) ->
 	io:format("Turning off client to speak ~p~n",[self()]),
 	{ok, State#state{client_on = false}};
+websocket_info(terminate, State) ->
+	io:format("Client hung up, terminating ws_handler ~p~n",[self()]),
+	{stop, State};
 websocket_info(Info, State) ->
 	io:format("Some thing random ~p~n",[Info]),
 	{ok, State}.
