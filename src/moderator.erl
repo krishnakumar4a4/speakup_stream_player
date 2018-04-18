@@ -55,6 +55,7 @@ start_link() ->
 %%--------------------------------------------------------------------
 init([]) ->
     process_flag(trap_exit, true),
+    ets:new(participant_connections, [set, named_table, {read_concurrency, true}]),
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -71,11 +72,10 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call({register, ClientPid}, From, State) ->
+handle_call({register, ClientPid, Token, TTT}, From, State) ->
     io:format("~p: registered client ~p, ~p~n",[?MODULE, ClientPid, From]),
-    PartcipantId = State#state.participant_count+1,
-    RegisteredClients = [{ClientPid, monitor(process,ClientPid),PartcipantId, false}|State#state.ws_handlers],
-    {reply, ok, State#state{ws_handlers = RegisteredClients, participant_count = PartcipantId}};
+    ets:insert(participant_connections, {Token, {TTT, ClientPid, monitor(process,ClientPid)}}),
+    {reply, ok, State#state{}};
 % handle_call({unregister, ClientPid}, From, State) ->
 %     io:format("~p: unregistered client ~p, ~p~n",[?MODULE, ClientPid, From]),
 %     RegisteredClients = [I||I<-State#state.ws_handlers, I =/= {ClientPid, From}],
@@ -113,7 +113,24 @@ handle_call({can_speak, PartcipantId}, _From, State) ->
         end,
     UpdatedParticipants = [{A,B,C,F(C,A,PartcipantId)}||{A,B,C,_D}<-Participants],
     io:format("UpdatedParticipants ~p~n",[UpdatedParticipants]),
-    {reply, ok, State#state{ws_handlers = UpdatedParticipants}};    
+    {reply, ok, State#state{ws_handlers = UpdatedParticipants}}; 
+
+%%Terminates the ws_handler if the client hangs up
+handle_call({terminate_ws_handler, Token, TTT}, _From, State) -> 
+    case ets:lookup(participant_connections, Token) of
+        [] ->
+            {reply, ok, State};
+        [{Token,{TTT,ClientPid,MonitorRef}}|_] ->
+            %%Terminate handler here
+            erlang:send(ClientPid, terminate),
+            {reply, ok, State};
+        [{Token,{SomeTTT, ClientPid, MonitorRef}}|_] ->
+            %% Log this event as suspicon, need not terminate session
+            {reply, ok, State};
+        _ ->
+            {reply, ok, State}
+    end;
+
 handle_call(Request, _From, State) ->
     io:format("Received request ~p~n",[Request]),
     Reply = ok,
