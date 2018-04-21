@@ -41,7 +41,7 @@ websocket_handle({text, Msg}, State) ->
 websocket_handle(Data, State) ->
 	case State#state.client_on of
 		true ->
-			io:format("~p: Got data in handle and sending it to moderator from ~p ~n",[?MODULE, self()]),
+			% io:format("~p: Got data in handle and sending it to moderator from ~p ~n",[?MODULE, self()]),
 			moderator:cast_to_speaker(Data, self());
 		false ->
 			ok
@@ -60,7 +60,7 @@ websocket_info({timeout, _Ref, Msg}, State) ->
 websocket_info({binary,Data}, State) ->
 	case State#state.client_on of
 		true ->
-			io:format("~p: Got data in info and sending it to moderator from ~p ~n",[?MODULE, self()]),
+			% io:format("~p: Got data in info and sending it to moderator from ~p ~n",[?MODULE, self()]),
 			moderator:cast_to_speaker({binary,Data}, self());
 		false ->
 			ok

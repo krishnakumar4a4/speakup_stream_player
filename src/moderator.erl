@@ -117,17 +117,22 @@ handle_call({can_speak, PartcipantId}, _From, State) ->
 
 %%Terminates the ws_handler if the client hangs up
 handle_call({terminate_ws_handler, Token, TTT}, _From, State) -> 
+    io:format("Terminating ws_handler with token ~p and ttt ~p~n",[Token, TTT]),
     case ets:lookup(participant_connections, Token) of
         [] ->
+            io:format("No matching TTT to terminate"),
             {reply, ok, State};
         [{Token,{TTT,ClientPid,MonitorRef}}|_] ->
             %%Terminate handler here
+            io:format("Terminating ws_handler pid ~p~n",[ClientPid]),
             erlang:send(ClientPid, terminate),
             {reply, ok, State};
         [{Token,{SomeTTT, ClientPid, MonitorRef}}|_] ->
             %% Log this event as suspicon, need not terminate session
+            io:format("Terminating ws_handler pid with SomeTTT"),
             {reply, ok, State};
         _ ->
+            io:format("Nothing matches"),
             {reply, ok, State}
     end;
 
@@ -147,7 +152,7 @@ handle_call(Request, _From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast({receive_from_ws_handler, From, Data}, State) ->
-    io:format("~p: Forwarding message to speaker from ~p ~n", [?MODULE, From]),
+    % io:format("~p: Forwarding message to speaker from ~p ~n", [?MODULE, From]),
     speaker_worker:make_cast(Data),
     {noreply, State};
 handle_cast(_Msg, State) ->
@@ -165,8 +170,17 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info({'DOWN', MonitorRef, _Type, _Object, _Info}, State) ->
     io:format("~p: unregistered client after down ~p ~n",[?MODULE, MonitorRef]),
-    RegisteredClients = [I||I<-State#state.ws_handlers, element(2,I) =/= MonitorRef],
-    {noreply, State#state{ws_handlers = RegisteredClients}};
+    case ets:match_object(participant_connections, {'_',{'_','_',MonitorRef}}) of
+        [] ->
+            {noreply, State};
+        [{Token,{TTT,ClientPid,MonitorRef}}|_] ->
+            %%Invalidate TTT if the ws_handler is unregistered
+            % gen_server:call({global, moderator_worker},{unregister_destroy_ttt, Token, TTT}),
+            ets:delete(participant_connections, Token),
+            {noreply, State};
+        _ ->
+            {noreply, State}
+    end;
 handle_info(_Info, State) ->
     {noreply, State}.
 
