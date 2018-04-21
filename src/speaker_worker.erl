@@ -109,7 +109,7 @@ handle_call(Request, _From, State) ->
 %%--------------------------------------------------------------------
 handle_cast({receive_from_moderator,Data}, State) ->
 	% io:format("~p: received from ws ~p~n",[?SERVER, Data]),
-	io:format("~p: received time ~p~n",[?SERVER, erlang:timestamp()]),
+	% io:format("~p: received time ~p~n",[?SERVER, erlang:timestamp()]),
 	% MessageQ = State#state.messages,
 	case Data of
 		{binary, <<147,5,192,0>>} ->
@@ -126,7 +126,7 @@ handle_cast({receive_from_moderator,Data}, State) ->
 
     		%% Directly send stream to speaker
     		gen_tcp:send(State#state.speaker_tcp_client_sock, websocket_client:encode_frame(Data)),
-    		io:format("~p: Sending stream to speaker~n",[?MODULE]),
+    		% io:format("~p: Sending stream to speaker~n",[?MODULE]),
     		{noreply, State}
     end;
 handle_cast(_Msg, State) ->
