@@ -1,0 +1,17 @@
+# Create virtualenv
+virtualenv env
+
+source env/bin/activate 
+
+# Install required packages
+pip install -r requirements.txt
+
+erlc transcribe.erl
+
+erl -name speech_server@127.0.0.1
+
+#Commands to be run inside erl shell
+net_kernel:connect('phoenix_speak_up@127.0.0.1').
+global:registered_names().
+{ok,P}=python:start().
+python:call(P,transcribe_streaming_mic,main,[]).
