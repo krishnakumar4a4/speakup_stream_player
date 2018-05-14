@@ -6,6 +6,9 @@ source env/bin/activate
 # Install required packages
 pip install -r requirements.txt
 
+#Export key
+export GOOGLE_APPLICATION_CREDENTIALS="/Users/krishnak/Work/Leizure/elx-wkshp/python-docs-samples/speech/cloud-client/My First Project-302a7f10fd92.json"
+
 erlc transcribe.erl
 
 erl -name speech_server@127.0.0.1
