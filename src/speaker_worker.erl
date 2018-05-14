@@ -20,7 +20,8 @@
 -define(SERVER, ?MODULE).
 
 -record(state, {
-	speaker_tcp_client_sock
+	speaker_tcp_client_sock,
+    speaker_udp_client_sock
 	% messages= queue:new()
 	}).
 
@@ -75,20 +76,11 @@ init([]) ->
 %%--------------------------------------------------------------------
 handle_call({connect}, _From, State) ->
     SomeHostInNet = "localhost", % to make it runnable on one machine
-    case gen_tcp:connect(SomeHostInNet, 9001,[binary, {packet, 0}]) of
+    case gen_udp:open(0, [binary]) of
 		{ok, Sock} ->
-			Handshake = ["GET ", "/", " HTTP/1.1\r\n"
-                 "Host: ", "localhost:8080", "\r\n"
-                 "Connection: Upgrade\r\n"
-                 "Sec-WebSocket-Version: 13\r\n"
-                 "Sec-WebSocket-Key: ", "JrsCSV40KdotKvRfAzD0dg==", "\r\n"
-                 "Upgrade: websocket\r\n",
-                 "\r\n"],
-                 io:format("sending handshake"),
-                 gen_tcp:send(Sock,list_to_binary(Handshake)),
-                 {reply,ok,#state{speaker_tcp_client_sock = Sock}};
+            {reply,ok,#state{speaker_udp_client_sock = Sock}};
 		Reason ->
-			io:format("Unable to start TCP client with Reason ~p~n",[Reason]),
+			io:format("Unable to start UDP client with Reason ~p~n",[Reason]),
 			{reply,error,State}
 	end;
 
@@ -125,7 +117,9 @@ handle_cast({receive_from_moderator,Data}, State) ->
     		% {noreply, State#state{messages = queue:in_r(websocket_client:encode_frame(Data),MessageQ)}}
 
     		%% Directly send stream to speaker
-    		gen_tcp:send(State#state.speaker_tcp_client_sock, websocket_client:encode_frame(Data)),
+    		% gen_tcp:send(State#state.speaker_tcp_client_sock, websocket_client:encode_frame(Data)),
+            % io:format("Data to be sent to gstreamer udp port is ~p~n",[split_binary(element(2,Data),10)]),
+            gen_udp:send(State#state.speaker_udp_client_sock, "localhost", 10000, element(2,split_binary(element(2,Data),5))),
     		% io:format("~p: Sending stream to speaker~n",[?MODULE]),
     		{noreply, State}
     end;
