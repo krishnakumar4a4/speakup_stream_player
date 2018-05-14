@@ -29,8 +29,8 @@ start(_Type, _Args) ->
         {ok, _} = cowboy:start_tls(https, [
                 {port, 8443},
                 % {cacertfile, PrivDir ++ "/ssl/cowboy-ca.crt"},
-                {certfile, PrivDir ++ "/ssl/localhost.cert"},
-                {keyfile, PrivDir ++ "/ssl/localhost.key"}
+                {certfile, PrivDir ++ "/ssl/fullchain.pem"},
+                {keyfile, PrivDir ++ "/ssl/privkey.pem"}
         ], #{env => #{dispatch => Dispatch}}),
         ws_sup:start_link().
 
