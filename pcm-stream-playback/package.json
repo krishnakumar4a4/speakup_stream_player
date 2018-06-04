@@ -1,0 +1,13 @@
+{
+  "name": "BinaryMicStreamToSpeaker",
+  "version": "1.0.0",
+  "description": "Playback binary audio stream on speaker",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "binaryjs": "0.2.1",
+    "speaker": "0.4.1"
+  },
+  "author": "krishna kumar"
+}

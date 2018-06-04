@@ -74,7 +74,8 @@ init([]) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_call({connect}, _From, State) ->
-    SomeHostInNet = "localhost", % to make it runnable on one machine
+    %%SomeHostInNet = "localhost", % to make it runnable on one machine
+    SomeHostInNet = "192.168.43.210",
     case gen_tcp:connect(SomeHostInNet, 9001,[binary, {packet, 0}]) of
 		{ok, Sock} ->
 			Handshake = ["GET ", "/", " HTTP/1.1\r\n"
@@ -125,6 +126,7 @@ handle_cast({receive_from_moderator,Data}, State) ->
     		% {noreply, State#state{messages = queue:in_r(websocket_client:encode_frame(Data),MessageQ)}}
 
     		%% Directly send stream to speaker
+		io:format("~p: Sending stream to speaker ~p",[?MODULE, Data]),
     		gen_tcp:send(State#state.speaker_tcp_client_sock, websocket_client:encode_frame(Data)),
     		% io:format("~p: Sending stream to speaker~n",[?MODULE]),
     		{noreply, State}

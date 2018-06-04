@@ -1,0 +1,6 @@
+## Name of the node
+-name erlang_speak_up@127.0.0.1
+
+#Run in deamon mode
+#-noshell
+
